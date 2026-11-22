@@ -1,0 +1,11 @@
+<!doctype html><html><head><meta charset="utf-8"><title>ShopLite</title>
+<style>body{font-family:sans-serif;max-width:900px;margin:2rem auto}section{border:1px solid #ccc;padding:1rem;margin:1rem 0;border-radius:8px}input{margin:2px}</style></head><body>
+<h1>ShopLite</h1>
+<section><h2>Users (PostgreSQL)</h2><input id="un" placeholder="name"><input id="ue" placeholder="email"><button onclick="add('users',{name:un.value,email:ue.value})">Add</button><pre id="users"></pre></section>
+<section><h2>Products (MongoDB)</h2><input id="pn" placeholder="name"><input id="pp" placeholder="price"><button onclick="add('products',{name:pn.value,price:pp.value})">Add</button><pre id="products"></pre></section>
+<section><h2>Orders (PostgreSQL)</h2><input id="ou" placeholder="user id"><input id="op" placeholder="product _id"><input id="oq" placeholder="qty"><button onclick="add('orders',{userId:ou.value,productId:op.value,qty:+oq.value})">Order</button><pre id="orders"></pre></section>
+<script>
+async function load(n){document.getElementById(n).textContent=JSON.stringify(await (await fetch('/api/'+n)).json(),null,2)}
+async function add(n,b){const r=await fetch('/api/'+n,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});if(!r.ok)alert(await r.text());['users','products','orders'].forEach(load)}
+['users','products','orders'].forEach(load)
+</script></body></html>

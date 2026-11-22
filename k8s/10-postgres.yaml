@@ -1,0 +1,43 @@
+apiVersion: v1
+kind: Service
+metadata: {name: postgres, namespace: shop}
+spec:
+  clusterIP: None
+  selector: {app: postgres}
+  ports: [{port: 5432}]
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata: {name: postgres, namespace: shop}
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector: {matchLabels: {app: postgres}}
+  template:
+    metadata: {labels: {app: postgres, tier: db}}
+    spec:
+      securityContext: {runAsUser: 70, runAsGroup: 70, fsGroup: 70, seccompProfile: {type: RuntimeDefault}}
+      containers:
+      - name: postgres
+        image: postgres:16-alpine
+        ports: [{containerPort: 5432}]
+        env:
+        - {name: POSTGRES_DB, value: users}
+        - {name: PGDATA, value: /var/lib/postgresql/data/pgdata}
+        - name: POSTGRES_USER
+          valueFrom: {secretKeyRef: {name: shop-secret, key: POSTGRES_USER}}
+        - name: POSTGRES_PASSWORD
+          valueFrom: {secretKeyRef: {name: shop-secret, key: POSTGRES_PASSWORD}}
+        readinessProbe: {exec: {command: ["pg_isready","-U","shop"]}, initialDelaySeconds: 5, periodSeconds: 10}
+        livenessProbe: {exec: {command: ["pg_isready","-U","shop"]}, initialDelaySeconds: 20, periodSeconds: 20}
+        resources: {requests: {cpu: 100m, memory: 256Mi}, limits: {cpu: 500m, memory: 512Mi}}
+        securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+        volumeMounts:
+        - {name: data, mountPath: /var/lib/postgresql/data}
+        - {name: init, mountPath: /docker-entrypoint-initdb.d}
+      volumes:
+      - name: init
+        configMap: {name: shop-config, items: [{key: initdb.sql, path: initdb.sql}]}
+  volumeClaimTemplates:
+  - metadata: {name: data}
+    spec: {accessModes: [ReadWriteOnce], resources: {requests: {storage: 1Gi}}}

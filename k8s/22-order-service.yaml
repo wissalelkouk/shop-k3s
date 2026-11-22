@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: order-service, namespace: shop, labels: {app: order-service}}
+spec:
+  replicas: 2
+  strategy: {type: RollingUpdate, rollingUpdate: {maxSurge: 1, maxUnavailable: 0}}
+  selector: {matchLabels: {app: order-service}}
+  template:
+    metadata: {labels: {app: order-service, tier: backend}}
+    spec:
+      securityContext: {runAsNonRoot: true, runAsUser: 1000, seccompProfile: {type: RuntimeDefault}}
+      containers:
+      - name: order-service
+        image: wissl/order-service:1.0.0
+        imagePullPolicy: IfNotPresent
+        ports: [{containerPort: 3000}]
+        envFrom: [{configMapRef: {name: shop-config}}]
+        env:
+        - {name: DB_HOST, value: postgres}
+        - {name: DB_NAME, value: orders}
+        - name: DB_USER
+          valueFrom: {secretKeyRef: {name: shop-secret, key: POSTGRES_USER}}
+        - name: DB_PASSWORD
+          valueFrom: {secretKeyRef: {name: shop-secret, key: POSTGRES_PASSWORD}}
+        readinessProbe: {httpGet: {path: /readyz, port: 3000}, initialDelaySeconds: 5, periodSeconds: 10}
+        livenessProbe: {httpGet: {path: /healthz, port: 3000}, initialDelaySeconds: 10, periodSeconds: 20}
+        resources: {requests: {cpu: 50m, memory: 64Mi}, limits: {cpu: 250m, memory: 128Mi}}
+        securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: order-service, namespace: shop}
+spec:
+  selector: {app: order-service}
+  ports: [{port: 80, targetPort: 3000}]
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata: {name: order-service, namespace: shop}
+spec:
+  scaleTargetRef: {apiVersion: apps/v1, kind: Deployment, name: order-service}
+  minReplicas: 2
+  maxReplicas: 5
+  metrics: [{type: Resource, resource: {name: cpu, target: {type: Utilization, averageUtilization: 70}}}]

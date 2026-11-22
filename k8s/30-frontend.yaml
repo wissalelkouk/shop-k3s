@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: frontend, namespace: shop, labels: {app: frontend}}
+spec:
+  replicas: 2
+  strategy: {type: RollingUpdate, rollingUpdate: {maxSurge: 1, maxUnavailable: 0}}
+  selector: {matchLabels: {app: frontend}}
+  template:
+    metadata: {labels: {app: frontend, tier: web}}
+    spec:
+      securityContext: {runAsNonRoot: true, seccompProfile: {type: RuntimeDefault}}
+      containers:
+      - name: frontend
+        image: wissl/frontend:1.0.0
+        imagePullPolicy: IfNotPresent
+        ports: [{containerPort: 8080}]
+        readinessProbe: {httpGet: {path: /, port: 8080}, periodSeconds: 10}
+        livenessProbe: {httpGet: {path: /, port: 8080}, initialDelaySeconds: 10, periodSeconds: 20}
+        resources: {requests: {cpu: 25m, memory: 32Mi}, limits: {cpu: 100m, memory: 64Mi}}
+        securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: frontend, namespace: shop}
+spec:
+  selector: {app: frontend}
+  ports: [{port: 80, targetPort: 8080}]
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress   # K3s ships Traefik as default ingress controller
+metadata: {name: shop, namespace: shop}
+spec:
+  rules:
+  - http:
+      paths:
+      - {path: /api/users,    pathType: Prefix, backend: {service: {name: user-service,    port: {number: 80}}}}
+      - {path: /api/products, pathType: Prefix, backend: {service: {name: product-service, port: {number: 80}}}}
+      - {path: /api/orders,   pathType: Prefix, backend: {service: {name: order-service,   port: {number: 80}}}}
+      - {path: /,             pathType: Prefix, backend: {service: {name: frontend,        port: {number: 80}}}}

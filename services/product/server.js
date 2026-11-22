@@ -1,0 +1,12 @@
+const express = require('express'); const { MongoClient, ObjectId } = require('mongodb');
+const app = express(); app.use(express.json());
+const url = `mongodb://${encodeURIComponent(process.env.MONGO_USER)}:${encodeURIComponent(process.env.MONGO_PASSWORD)}@${process.env.MONGO_HOST}:27017/?authSource=admin`;
+const client = new MongoClient(url, { serverSelectionTimeoutMS: 3000 });
+const col = () => client.db('shop').collection('products');
+app.get('/healthz', (q, r) => r.send('ok'));
+app.get('/readyz', async (q, r) => { try { await client.db('admin').command({ ping: 1 }); r.send('ok'); } catch { r.sendStatus(503); } });
+app.get('/api/products', async (q, r) => r.json(await col().find().toArray()));
+app.get('/api/products/:id', async (q, r) => { try { const p = await col().findOne({ _id: new ObjectId(q.params.id) }); p ? r.json(p) : r.sendStatus(404); } catch { r.sendStatus(400); } });
+app.post('/api/products', async (q, r) => { const { name, price } = q.body;
+  const x = await col().insertOne({ name, price: Number(price) }); r.status(201).json({ _id: x.insertedId, name, price }); });
+client.connect().catch(() => {}); app.listen(3000);

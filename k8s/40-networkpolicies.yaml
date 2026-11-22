@@ -1,0 +1,36 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny-ingress, namespace: shop}
+spec: {podSelector: {}, policyTypes: [Ingress]}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-from-traefik, namespace: shop}
+spec:
+  podSelector: {matchExpressions: [{key: tier, operator: In, values: [web, backend]}]}
+  policyTypes: [Ingress]
+  ingress: [{from: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}}]}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: order-to-user-product, namespace: shop}
+spec:
+  podSelector: {matchExpressions: [{key: app, operator: In, values: [user-service, product-service]}]}
+  policyTypes: [Ingress]
+  ingress: [{from: [{podSelector: {matchLabels: {app: order-service}}}]}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: postgres-from-services, namespace: shop}
+spec:
+  podSelector: {matchLabels: {app: postgres}}
+  policyTypes: [Ingress]
+  ingress: [{from: [{podSelector: {matchExpressions: [{key: app, operator: In, values: [user-service, order-service]}]}}], ports: [{port: 5432}]}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: mongo-from-product, namespace: shop}
+spec:
+  podSelector: {matchLabels: {app: mongo}}
+  policyTypes: [Ingress]
+  ingress: [{from: [{podSelector: {matchLabels: {app: product-service}}}], ports: [{port: 27017}]}]
